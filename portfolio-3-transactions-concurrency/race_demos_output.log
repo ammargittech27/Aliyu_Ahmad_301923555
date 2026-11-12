@@ -1,0 +1,33 @@
+
+======== PART 1 - THE BUG: two sessions book the LAST seat with a plain SELECT count + INSERT ========
+start: BOOKED=19 WAITLISTED=0 capacity=20
+session A: sees 19 booked of 20 -> free seat, inserts member 248
+session B: sees 19 booked of 20 -> free seat, inserts member 272
+after both commit: BOOKED=21 WAITLISTED=0 capacity=20   <-- 21 BOOKED in a class of 20 (overbooked!)
+
+======== PART 2 - UNIQUE (class_session_id, member_id): the same member booked twice at once ========
+session B is blocked waiting for A's uncommitted row... alive
+session B result: UniqueViolation: one_booking_per_member_per_class
+final: BOOKED=20 WAITLISTED=0 capacity=20 (one booking for that member)
+
+======== PART 3 - FIX 1: book_class() locks the class row (SELECT ... FOR UPDATE) ========
+session B called book_class() and is waiting on the lock: yes
+session B finished after the lock released: status=WAITLISTED (waited 1.0s)
+final: BOOKED=20 WAITLISTED=1 capacity=20   <-- exactly 20 BOOKED, the late one is WAITLISTED
+
+======== PART 4 - FIX 2: SERIALIZABLE isolation (one of the two is aborted and must retry) ========
+A: COMMIT ok
+B: SerializationFailure (SQLSTATE 40001) - retry needed
+final: BOOKED=20 WAITLISTED=0 capacity=20
+
+======== PART 5 - READ COMMITTED vs REPEATABLE READ (non-repeatable read) ========
+READ COMMITTED: reader's first count=10, after another session committed a booking, second count=11  -> CHANGED
+REPEATABLE READ: reader's first count=10, after another session committed a booking, second count=10  -> same snapshot
+
+======== PART 6 - DEADLOCK: two sessions lock the same two bookings in opposite order ========
+A locked booking 78923; B locked booking 78924
+A: DeadlockDetected (SQLSTATE 40P01) - victim rolled back
+B: got second lock
+fix: always lock bookings in the same order (ORDER BY booking_id ... FOR UPDATE) and the deadlock cannot happen.
+
+All six demos finished.

@@ -1,0 +1,86 @@
+==> [1/3] Procedures + COMMIT/ROLLBACK examples (transactions.sql)
+SET
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+
+== COMMIT example: book a real member into a class today ==
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-3-transactions-concurrency/transactions.sql:160: NOTICE:  book_class OK: member 10 class 5476 -> booking_id=78797 status=BOOKED
+DO
+
+== ROLLBACK example 1: undo a whole transaction ==
+ members_before 
+----------------
+           6000
+(1 row)
+
+BEGIN
+INSERT 0 1
+ members_inside_tx 
+-------------------
+              6001
+(1 row)
+
+ROLLBACK
+ members_after_rollback 
+------------------------
+                   6000
+(1 row)
+
+
+== ROLLBACK example 2: book_class refuses a member with no membership ==
+BEGIN
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-3-transactions-concurrency/transactions.sql:185: NOTICE:  PASS: rejected - Member 6009 has no active membership on 2026-11-12 for class 5476
+DO
+ROLLBACK
+ROLLED BACK - no rows kept.
+==> [2/3] Race fixture (race_setup.sql)
+SET
+SET
+CREATE FUNCTION
+Race fixture ready:
+ race_session_id 
+-----------------
+            5705
+(1 row)
+
+ capacity | booked 
+----------+--------
+       20 |     19
+(1 row)
+
+==> [3/3] Six concurrency demos with two sessions (run_race_demos.py)
+
+======== PART 1 - THE BUG: two sessions book the LAST seat with a plain SELECT count + INSERT ========
+start: BOOKED=19 WAITLISTED=0 capacity=20
+session A: sees 19 booked of 20 -> free seat, inserts member 248
+session B: sees 19 booked of 20 -> free seat, inserts member 272
+after both commit: BOOKED=21 WAITLISTED=0 capacity=20   <-- 21 BOOKED in a class of 20 (overbooked!)
+
+======== PART 2 - UNIQUE (class_session_id, member_id): the same member booked twice at once ========
+session B is blocked waiting for A's uncommitted row... alive
+session B result: UniqueViolation: one_booking_per_member_per_class
+final: BOOKED=20 WAITLISTED=0 capacity=20 (one booking for that member)
+
+======== PART 3 - FIX 1: book_class() locks the class row (SELECT ... FOR UPDATE) ========
+session B called book_class() and is waiting on the lock: yes
+session B finished after the lock released: status=WAITLISTED (waited 1.0s)
+final: BOOKED=20 WAITLISTED=1 capacity=20   <-- exactly 20 BOOKED, the late one is WAITLISTED
+
+======== PART 4 - FIX 2: SERIALIZABLE isolation (one of the two is aborted and must retry) ========
+A: COMMIT ok
+B: SerializationFailure (SQLSTATE 40001) - retry needed
+final: BOOKED=20 WAITLISTED=0 capacity=20
+
+======== PART 5 - READ COMMITTED vs REPEATABLE READ (non-repeatable read) ========
+READ COMMITTED: reader's first count=10, after another session committed a booking, second count=11  -> CHANGED
+REPEATABLE READ: reader's first count=10, after another session committed a booking, second count=10  -> same snapshot
+
+======== PART 6 - DEADLOCK: two sessions lock the same two bookings in opposite order ========
+A locked booking 78923; B locked booking 78924
+A: DeadlockDetected (SQLSTATE 40P01) - victim rolled back
+B: got second lock
+fix: always lock bookings in the same order (ORDER BY booking_id ... FOR UPDATE) and the deadlock cannot happen.
+
+All six demos finished.
+==> P3 complete. Evidence: portfolio-3-transactions-concurrency/race_demos_output.log
