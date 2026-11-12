@@ -1,0 +1,65 @@
+SET
+SET
+== Q1: free places in TODAY's classes (selective: one day) ==
+      branch       | class_session_id | class_type |       start_time       | capacity | free_places 
+-------------------+------------------+------------+------------------------+----------+-------------
+ IronCore Gwarinpa |             5479 | Boxing     | 2026-11-12 06:30:00+01 |       20 |          16
+ IronCore Gwarinpa |             5480 | Aerobics   | 2026-11-12 12:00:00+01 |       25 |           0
+ IronCore Gwarinpa |             5481 | Spinning   | 2026-11-12 18:00:00+01 |       30 |          15
+ IronCore Kaduna   |             5485 | Spinning   | 2026-11-12 06:30:00+01 |       20 |          10
+ IronCore Kaduna   |             5486 | HIIT       | 2026-11-12 12:00:00+01 |       25 |          11
+ IronCore Kaduna   |             5487 | Yoga       | 2026-11-12 18:00:00+01 |       30 |          21
+ IronCore Kano     |             5482 | Aerobics   | 2026-11-12 06:30:00+01 |       20 |           9
+ IronCore Kano     |             5483 | Spinning   | 2026-11-12 12:00:00+01 |       25 |           4
+ IronCore Kano     |             5484 | HIIT       | 2026-11-12 18:00:00+01 |       30 |          21
+ IronCore Lekki    |             5488 | HIIT       | 2026-11-12 06:30:00+01 |       20 |          17
+(10 rows)
+
+== Q2: fill rate per class type (FULL history, no index can help) ==
+   name   | sessions | capacity | filled 
+----------+----------+----------+--------
+ Spinning |     1140 |   409570 |  13812
+ Yoga     |       60 |    22335 |    829
+ HIIT     |       63 |    22325 |    814
+ Aerobics |       54 |    21190 |    789
+ Boxing   |       57 |    21220 |    778
+(5 rows)
+
+== Q3: busiest hours (FULL history, no index can help) ==
+ hour | sessions | bookings 
+------+----------+----------
+   18 |    36001 |    36001
+   12 |    23804 |    23804
+    6 |    18985 |    18985
+(3 rows)
+
+== Q4: memberships expiring in the next 7 days (selective) ==
+ member_id | first_name |  last_name   |  end_date  
+-----------+------------+--------------+------------
+      2642 | Sani       | Sanda        | 2026-11-12
+      2715 | Sanusi     | Eze          | 2026-11-12
+      1631 | Rabi       | Okeke-Okafor | 2026-11-12
+      1863 | Wasiu      | Dauda        | 2026-11-12
+        19 | Femi       | Ibrahim      | 2026-11-12
+      1115 | Mariam     | Eze          | 2026-11-12
+      1041 | Laila      | Onuoha       | 2026-11-12
+      1276 | Tanimu     | Nwosu        | 2026-11-12
+      1618 | Lola       | Gbenga       | 2026-11-12
+      3003 | Sanusi     | Adeosun-Ojo  | 2026-11-12
+(10 rows)
+
+== Q5: one trainer's workload in the last 90 days (selective) ==
+ first_name | last_name | sessions | bookings 
+------------+-----------+----------+----------
+ Abubakar   | Abubakar  |      210 |     2310
+(1 row)
+
+== Q6: booking history of ONE member (selective) ==
+ booking_id |       start_time       |   name   |  status   
+------------+------------------------+----------+-----------
+       6298 | 2025-12-12 12:00:00+01 | Spinning | CANCELLED
+       4950 | 2025-12-05 12:00:00+01 | Spinning | ATTENDED
+       4799 | 2025-12-05 06:30:00+01 | Spinning | ATTENDED
+       1954 | 2025-11-21 18:00:00+01 | Spinning | CANCELLED
+(4 rows)
+

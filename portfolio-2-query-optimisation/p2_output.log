@@ -1,0 +1,39 @@
+==> [1/5] Running queries.sql (results)
+ Abubakar   | Abubakar  |      210 |     2310
+(1 row)
+
+== Q6: booking history of ONE member (selective) ==
+ booking_id |       start_time       |   name   |  status   
+------------+------------------------+----------+-----------
+       6298 | 2025-12-12 12:00:00+01 | Spinning | CANCELLED
+       4950 | 2025-12-05 12:00:00+01 | Spinning | ATTENDED
+       4799 | 2025-12-05 06:30:00+01 | Spinning | ATTENDED
+       1954 | 2025-11-21 18:00:00+01 | Spinning | CANCELLED
+(4 rows)
+
+==> [2/5] Dropping secondary indexes + ANALYZE (so BEFORE has no helper indexes)
+==> [3/5] EXPLAIN ANALYZE BEFORE
+==> [4/5] Creating indexes + ANALYZE, then EXPLAIN ANALYZE AFTER
+SET
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+P2 indexes created: p2_session_start, p2_session_trainer_ts, p2_booking_session, p2_booking_member, p2_membership_end
+==> [5/5] Summary (real numbers from this run)
+P2 summary (ms from EXPLAIN ANALYZE; access paths taken):
+BEFORE Q1  0.810 ms  Seq Scan on class_session s; Seq Scan on branch b; Seq Scan on class_type ct; Index Scan using one_booking_per_member_per_class on class_booking bk
+BEFORE Q2  38.752 ms  Seq Scan on class_booking bk; Seq Scan on class_session s; Seq Scan on class_type ct
+BEFORE Q3  53.233 ms  Seq Scan on class_booking bk; Seq Scan on class_session s
+BEFORE Q4  1.574 ms  Seq Scan on member m; Seq Scan on membership ms
+BEFORE Q5  13.770 ms  Seq Scan on trainer; Seq Scan on trainer t; Seq Scan on class_booking bk; Bitmap Index Scan on no_overlap_trainer
+BEFORE Q6  4.655 ms  Seq Scan on class_session s; Seq Scan on class_booking bk; Seq Scan on class_type ct
+
+AFTER Q1  0.447 ms  Index Scan using p2_session_start on class_session s; Seq Scan on branch b; Seq Scan on class_type ct; Index Scan using p2_booking_session on class_booking bk
+AFTER Q2  49.395 ms  Seq Scan on class_booking bk; Seq Scan on class_session s; Seq Scan on class_type ct
+AFTER Q3  50.587 ms  Seq Scan on class_booking bk; Seq Scan on class_session s
+AFTER Q4  1.191 ms  Seq Scan on member m; Bitmap Index Scan on p2_membership_end
+AFTER Q5  10.804 ms  Seq Scan on trainer; Seq Scan on trainer t; Seq Scan on class_booking bk; Bitmap Index Scan on p2_session_trainer_ts
+AFTER Q6  0.783 ms  Seq Scan on class_session s; Bitmap Index Scan on p2_booking_member; Index Scan using class_type_pkey on class_type ct
+==> P2 complete. Output in /workspaces/Aliyu_Ahmad_301923555/portfolio-2-query-optimisation/output/ (explain_summary.txt has the before/after times).

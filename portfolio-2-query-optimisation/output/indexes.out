@@ -1,0 +1,7 @@
+SET
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+P2 indexes created: p2_session_start, p2_session_trainer_ts, p2_booking_session, p2_booking_member, p2_membership_end

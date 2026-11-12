@@ -1,0 +1,136 @@
+SET
+SET
+== Q1 EXPLAIN ANALYZE AFTER ==
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=0.314..0.321 rows=15 loops=1)
+   Group Key: b.name, s.class_session_id, ct.name
+   Batches: 1  Memory Usage: 40kB
+   ->  Nested Loop Left Join (actual time=0.130..0.239 rows=211 loops=1)
+         ->  Hash Join (actual time=0.108..0.121 rows=15 loops=1)
+               Hash Cond: (s.class_type_id = ct.class_type_id)
+               ->  Hash Join (actual time=0.072..0.081 rows=15 loops=1)
+                     Hash Cond: (s.branch_id = b.branch_id)
+                     ->  Index Scan using p2_session_start on class_session s (actual time=0.050..0.053 rows=15 loops=1)
+                           Index Cond: ((start_time >= CURRENT_DATE) AND (start_time < (CURRENT_DATE + 1)))
+                     ->  Hash (actual time=0.009..0.009 rows=5 loops=1)
+                           Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                           ->  Seq Scan on branch b (actual time=0.003..0.004 rows=5 loops=1)
+               ->  Hash (actual time=0.016..0.017 rows=5 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     ->  Seq Scan on class_type ct (actual time=0.007..0.008 rows=5 loops=1)
+         ->  Index Scan using p2_booking_session on class_booking bk (actual time=0.003..0.006 rows=14 loops=15)
+               Index Cond: (class_session_id = s.class_session_id)
+ Planning Time: 1.815 ms
+ Execution Time: 0.447 ms
+(20 rows)
+
+== Q2 EXPLAIN ANALYZE AFTER ==
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
+ GroupAggregate (actual time=46.097..49.201 rows=5 loops=1)
+   Group Key: ct.name
+   ->  Sort (actual time=45.944..46.731 rows=19015 loops=1)
+         Sort Key: ct.name, s.class_session_id
+         Sort Method: quicksort  Memory: 2209kB
+         ->  Hash Join (actual time=2.131..33.914 rows=19015 loops=1)
+               Hash Cond: (s.class_type_id = ct.class_type_id)
+               ->  Hash Right Join (actual time=2.092..26.950 rows=78790 loops=1)
+                     Hash Cond: (bk.class_session_id = s.class_session_id)
+                     ->  Seq Scan on class_booking bk (actual time=0.005..7.576 rows=78790 loops=1)
+                     ->  Hash (actual time=2.054..2.055 rows=5700 loops=1)
+                           Buckets: 8192  Batches: 1  Memory Usage: 332kB
+                           ->  Seq Scan on class_session s (actual time=0.004..0.949 rows=5700 loops=1)
+               ->  Hash (actual time=0.011..0.011 rows=5 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     ->  Seq Scan on class_type ct (actual time=0.004..0.005 rows=5 loops=1)
+ Planning Time: 0.290 ms
+ Execution Time: 49.395 ms
+(18 rows)
+
+== Q3 EXPLAIN ANALYZE AFTER ==
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ HashAggregate (actual time=50.538..50.545 rows=3 loops=1)
+   Group Key: EXTRACT(hour FROM (s.start_time AT TIME ZONE 'Africa/Lagos'::text))
+   Batches: 1  Memory Usage: 73kB
+   ->  Hash Right Join (actual time=1.016..38.206 rows=78790 loops=1)
+         Hash Cond: (bk.class_session_id = s.class_session_id)
+         ->  Seq Scan on class_booking bk (actual time=0.004..5.421 rows=78790 loops=1)
+         ->  Hash (actual time=0.992..0.993 rows=5700 loops=1)
+               Buckets: 8192  Batches: 1  Memory Usage: 332kB
+               ->  Seq Scan on class_session s (actual time=0.006..0.470 rows=5700 loops=1)
+ Planning Time: 0.300 ms
+ Execution Time: 50.587 ms
+(11 rows)
+
+== Q4 EXPLAIN ANALYZE AFTER ==
+                                              QUERY PLAN                                              
+------------------------------------------------------------------------------------------------------
+ Hash Join (actual time=0.296..1.166 rows=131 loops=1)
+   Hash Cond: (m.member_id = ms.member_id)
+   ->  Seq Scan on member m (actual time=0.018..0.584 rows=6000 loops=1)
+   ->  Hash (actual time=0.190..0.190 rows=131 loops=1)
+         Buckets: 1024  Batches: 1  Memory Usage: 15kB
+         ->  Bitmap Heap Scan on membership ms (actual time=0.031..0.174 rows=131 loops=1)
+               Recheck Cond: ((end_date >= CURRENT_DATE) AND (end_date <= (CURRENT_DATE + 7)))
+               Heap Blocks: exact=47
+               ->  Bitmap Index Scan on p2_membership_end (actual time=0.021..0.021 rows=131 loops=1)
+                     Index Cond: ((end_date >= CURRENT_DATE) AND (end_date <= (CURRENT_DATE + 7)))
+ Planning Time: 0.472 ms
+ Execution Time: 1.191 ms
+(12 rows)
+
+== Q5 EXPLAIN ANALYZE AFTER ==
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate (actual time=10.743..10.747 rows=1 loops=1)
+   Group Key: t.first_name
+   InitPlan 1 (returns $1)
+     ->  Aggregate (actual time=0.005..0.006 rows=1 loops=1)
+           ->  Seq Scan on trainer (actual time=0.001..0.003 rows=10 loops=1)
+   ->  Sort (actual time=10.444..10.536 rows=2310 loops=1)
+         Sort Key: t.first_name, s.class_session_id
+         Sort Method: quicksort  Memory: 223kB
+         ->  Nested Loop (actual time=7.097..10.083 rows=2310 loops=1)
+               ->  Seq Scan on trainer t (actual time=0.012..0.014 rows=1 loops=1)
+                     Filter: (trainer_id = $1)
+                     Rows Removed by Filter: 9
+               ->  Hash Right Join (actual time=7.083..9.899 rows=2310 loops=1)
+                     Hash Cond: (bk.class_session_id = s.class_session_id)
+                     ->  Seq Scan on class_booking bk (actual time=0.003..4.979 rows=78790 loops=1)
+                     ->  Hash (actual time=0.090..0.091 rows=210 loops=1)
+                           Buckets: 1024  Batches: 1  Memory Usage: 18kB
+                           ->  Bitmap Heap Scan on class_session s (actual time=0.032..0.070 rows=210 loops=1)
+                                 Recheck Cond: ((trainer_id = $1) AND (start_time >= (now() - '90 days'::interval)))
+                                 Heap Blocks: exact=16
+                                 ->  Bitmap Index Scan on p2_session_trainer_ts (actual time=0.026..0.027 rows=210 loops=1)
+                                       Index Cond: ((trainer_id = $1) AND (start_time >= (now() - '90 days'::interval)))
+ Planning Time: 0.359 ms
+ Execution Time: 10.804 ms
+(24 rows)
+
+== Q6 EXPLAIN ANALYZE AFTER ==
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Nested Loop (actual time=0.092..0.760 rows=4 loops=1)
+   ->  Hash Join (actual time=0.069..0.747 rows=19 loops=1)
+         Hash Cond: (s.class_session_id = bk.class_session_id)
+         ->  Seq Scan on class_session s (actual time=0.003..0.363 rows=5700 loops=1)
+         ->  Hash (actual time=0.055..0.055 rows=19 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 10kB
+               ->  Bitmap Heap Scan on class_booking bk (actual time=0.033..0.051 rows=19 loops=1)
+                     Recheck Cond: (member_id = 1234)
+                     Heap Blocks: exact=18
+                     ->  Bitmap Index Scan on p2_booking_member (actual time=0.027..0.027 rows=19 loops=1)
+                           Index Cond: (member_id = 1234)
+   ->  Memoize (actual time=0.000..0.000 rows=0 loops=19)
+         Cache Key: s.class_type_id
+         Cache Mode: logical
+         Hits: 15  Misses: 4  Evictions: 0  Overflows: 0  Memory Usage: 1kB
+         ->  Index Scan using class_type_pkey on class_type ct (actual time=0.001..0.001 rows=0 loops=4)
+               Index Cond: (class_type_id = s.class_type_id)
+ Planning Time: 0.250 ms
+ Execution Time: 0.783 ms
+(19 rows)
+

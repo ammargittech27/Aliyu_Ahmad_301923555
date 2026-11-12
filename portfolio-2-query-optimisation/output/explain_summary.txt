@@ -1,0 +1,14 @@
+P2 summary (ms from EXPLAIN ANALYZE; access paths taken):
+BEFORE Q1  0.810 ms  Seq Scan on class_session s; Seq Scan on branch b; Seq Scan on class_type ct; Index Scan using one_booking_per_member_per_class on class_booking bk
+BEFORE Q2  38.752 ms  Seq Scan on class_booking bk; Seq Scan on class_session s; Seq Scan on class_type ct
+BEFORE Q3  53.233 ms  Seq Scan on class_booking bk; Seq Scan on class_session s
+BEFORE Q4  1.574 ms  Seq Scan on member m; Seq Scan on membership ms
+BEFORE Q5  13.770 ms  Seq Scan on trainer; Seq Scan on trainer t; Seq Scan on class_booking bk; Bitmap Index Scan on no_overlap_trainer
+BEFORE Q6  4.655 ms  Seq Scan on class_session s; Seq Scan on class_booking bk; Seq Scan on class_type ct
+
+AFTER Q1  0.447 ms  Index Scan using p2_session_start on class_session s; Seq Scan on branch b; Seq Scan on class_type ct; Index Scan using p2_booking_session on class_booking bk
+AFTER Q2  49.395 ms  Seq Scan on class_booking bk; Seq Scan on class_session s; Seq Scan on class_type ct
+AFTER Q3  50.587 ms  Seq Scan on class_booking bk; Seq Scan on class_session s
+AFTER Q4  1.191 ms  Seq Scan on member m; Bitmap Index Scan on p2_membership_end
+AFTER Q5  10.804 ms  Seq Scan on trainer; Seq Scan on trainer t; Seq Scan on class_booking bk; Bitmap Index Scan on p2_session_trainer_ts
+AFTER Q6  0.783 ms  Seq Scan on class_session s; Bitmap Index Scan on p2_booking_member; Index Scan using class_type_pkey on class_type ct
