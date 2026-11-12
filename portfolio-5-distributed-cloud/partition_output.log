@@ -1,0 +1,83 @@
+SET
+SET
+== Rebuilding class_booking as a RANGE-partitioned table ==
+SELECT 78810
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-5-distributed-cloud/partition.sql:20: NOTICE:  drop cascades to view v_session_booking_count
+DROP TABLE
+CREATE TABLE
+DO
+CREATE TABLE
+INSERT 0 78810
+ setval 
+--------
+  78960
+(1 row)
+
+CREATE INDEX
+CREATE INDEX
+CREATE FUNCTION
+CREATE TRIGGER
+CREATE TRIGGER
+CREATE TRIGGER
+CREATE VIEW
+ALTER TABLE
+CREATE INDEX
+ANALYZE
+ANALYZE
+
+== Partitions and row counts ==
+       partition       | rows 
+-----------------------+------
+ class_booking_2025_11 | 4013
+ class_booking_2025_12 | 6118
+ class_booking_2026_01 | 6623
+ class_booking_2026_02 | 5746
+ class_booking_2026_03 | 6544
+ class_booking_2026_04 | 6462
+ class_booking_2026_05 | 6321
+ class_booking_2026_06 | 6225
+ class_booking_2026_07 | 6381
+ class_booking_2026_08 | 6447
+ class_booking_2026_09 | 6097
+ class_booking_2026_10 | 6315
+ class_booking_2026_11 | 5518
+(13 rows)
+
+                 check                 | count 
+---------------------------------------+-------
+ rows in DEFAULT partition (must be 0) |     0
+(1 row)
+
+                check                | partitioned | flat  
+-------------------------------------+-------------+-------
+ total rows partitioned vs flat copy |       78810 | 78810
+(1 row)
+
+
+== One-month query, PARTITIONED table (partition pruning: only the matching partition is read) ==
+                                                                                                QUERY PLAN                                                                                                
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=3.098..3.099 rows=2 loops=1)
+   Group Key: class_booking.status
+   Batches: 1  Memory Usage: 24kB
+   ->  Append (actual time=0.007..2.378 rows=6447 loops=1)
+         Subplans Removed: 17
+         ->  Seq Scan on class_booking_2026_08 class_booking_1 (actual time=0.006..2.008 rows=6447 loops=1)
+               Filter: ((class_date >= (date_trunc('month'::text, (CURRENT_DATE - '3 mons'::interval)))::date) AND (class_date < (date_trunc('month'::text, (CURRENT_DATE - '2 mons'::interval)))::date))
+ Planning Time: 0.989 ms
+ Execution Time: 3.123 ms
+(9 rows)
+
+
+== Same query, UNPARTITIONED copy (index on class_date) ==
+                                                                                               QUERY PLAN                                                                                               
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=1.531..1.532 rows=2 loops=1)
+   Group Key: status
+   Batches: 1  Memory Usage: 24kB
+   ->  Index Scan using idx_flat_class_date on class_booking_flat (actual time=0.030..0.715 rows=6447 loops=1)
+         Index Cond: ((class_date >= (date_trunc('month'::text, (CURRENT_DATE - '3 mons'::interval)))::date) AND (class_date < (date_trunc('month'::text, (CURRENT_DATE - '2 mons'::interval)))::date))
+ Planning Time: 0.083 ms
+ Execution Time: 1.548 ms
+(7 rows)
+

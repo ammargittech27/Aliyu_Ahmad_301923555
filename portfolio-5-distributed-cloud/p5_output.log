@@ -1,0 +1,206 @@
+==> [1/3] Rebuild class_booking as a monthly RANGE-partitioned table
+SET
+SET
+== Rebuilding class_booking as a RANGE-partitioned table ==
+SELECT 78810
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-5-distributed-cloud/partition.sql:20: NOTICE:  drop cascades to view v_session_booking_count
+DROP TABLE
+CREATE TABLE
+DO
+CREATE TABLE
+INSERT 0 78810
+ setval 
+--------
+  78960
+(1 row)
+
+CREATE INDEX
+CREATE INDEX
+CREATE FUNCTION
+CREATE TRIGGER
+CREATE TRIGGER
+CREATE TRIGGER
+CREATE VIEW
+ALTER TABLE
+CREATE INDEX
+ANALYZE
+ANALYZE
+
+== Partitions and row counts ==
+       partition       | rows 
+-----------------------+------
+ class_booking_2025_11 | 4013
+ class_booking_2025_12 | 6118
+ class_booking_2026_01 | 6623
+ class_booking_2026_02 | 5746
+ class_booking_2026_03 | 6544
+ class_booking_2026_04 | 6462
+ class_booking_2026_05 | 6321
+ class_booking_2026_06 | 6225
+ class_booking_2026_07 | 6381
+ class_booking_2026_08 | 6447
+ class_booking_2026_09 | 6097
+ class_booking_2026_10 | 6315
+ class_booking_2026_11 | 5518
+(13 rows)
+
+                 check                 | count 
+---------------------------------------+-------
+ rows in DEFAULT partition (must be 0) |     0
+(1 row)
+
+                check                | partitioned | flat  
+-------------------------------------+-------------+-------
+ total rows partitioned vs flat copy |       78810 | 78810
+(1 row)
+
+
+== One-month query, PARTITIONED table (partition pruning: only the matching partition is read) ==
+                                                                                                QUERY PLAN                                                                                                
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=3.098..3.099 rows=2 loops=1)
+   Group Key: class_booking.status
+   Batches: 1  Memory Usage: 24kB
+   ->  Append (actual time=0.007..2.378 rows=6447 loops=1)
+         Subplans Removed: 17
+         ->  Seq Scan on class_booking_2026_08 class_booking_1 (actual time=0.006..2.008 rows=6447 loops=1)
+               Filter: ((class_date >= (date_trunc('month'::text, (CURRENT_DATE - '3 mons'::interval)))::date) AND (class_date < (date_trunc('month'::text, (CURRENT_DATE - '2 mons'::interval)))::date))
+ Planning Time: 0.989 ms
+ Execution Time: 3.123 ms
+(9 rows)
+
+
+== Same query, UNPARTITIONED copy (index on class_date) ==
+                                                                                               QUERY PLAN                                                                                               
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=1.531..1.532 rows=2 loops=1)
+   Group Key: status
+   Batches: 1  Memory Usage: 24kB
+   ->  Index Scan using idx_flat_class_date on class_booking_flat (actual time=0.030..0.715 rows=6447 loops=1)
+         Index Cond: ((class_date >= (date_trunc('month'::text, (CURRENT_DATE - '3 mons'::interval)))::date) AND (class_date < (date_trunc('month'::text, (CURRENT_DATE - '2 mons'::interval)))::date))
+ Planning Time: 0.083 ms
+ Execution Time: 1.548 ms
+(7 rows)
+
+
+==> [2/3] Building the streaming read replica on port 5433
+==> [1/7] Configure primary for streaming replication
+ALTER SYSTEM
+ALTER SYSTEM
+ALTER SYSTEM
+ALTER SYSTEM
+==> [2/7] Add trust replication line at the TOP of pg_hba.conf
+==> [3/7] Restart primary so the new WAL & HBA settings take effect
+==> [4/7] Create replica role if it doesn't exist
+DO
+==> [5/7] Stop existing replica (if any) and remove its data dir
+==> [6/7] Base backup from primary into replica data dir (creates replication slot)
+waiting for checkpoint
+ 5019/60110 kB (8%), 0/1 tablespace
+60121/60121 kB (100%), 0/1 tablespace
+60121/60121 kB (100%), 1/1 tablespace
+==> [7/7] Configure replica: own postgresql.conf, copies of pg_hba/pg_ident, standby.signal
+waiting for server to start.... done
+server started
+==> Verification on PRIMARY:
+ application_name |   state   | sync_state | sent_lsn  | write_lsn 
+------------------+-----------+------------+-----------+-----------
+ ironcore_replica | streaming | async      | 0/8000000 | 0/8000000
+(1 row)
+
+==> Verification on REPLICA:
+ pg_is_in_recovery 
+-------------------
+ t
+(1 row)
+
+==> Done. Primary on /var/run/postgresql:5432 ; Replica on /var/run/postgresql:5433
+
+==> [3/3] Running the replica demo (switches primary <-> replica with \connect)
+Pager usage is off.
+You are now connected to database "ironcore" as user "postgres".
+SET
+SET
+== 1. Who is who ==
+ port | is_replica |  role   
+------+------------+---------
+ 5432 | f          | PRIMARY
+(1 row)
+
+demo class_session_id = 5479  demo member_id = 10  class_date = 2026-11-12
+ bookings_on_primary_before 
+----------------------------
+                      78810
+(1 row)
+
+ demo_rows_before 
+------------------
+                0
+(1 row)
+
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5433".
+SET
+
+== 2. Switched to the REPLICA ==
+ port | is_replica |  role   
+------+------------+---------
+ 5433 | t          | REPLICA
+(1 row)
+
+ bookings_on_replica_before 
+----------------------------
+                      78810
+(1 row)
+
+== 3. A write on the replica must be rejected (read-only) ==
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-5-distributed-cloud/replica_demo.sql:33: ERROR:  cannot execute INSERT in a read-only transaction
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5432".
+SET
+
+== 4. Back on the PRIMARY: the same insert is accepted ==
+ port | is_replica 
+------+------------
+ 5432 | f
+(1 row)
+
+INSERT 0 1
+ bookings_on_primary_after 
+---------------------------
+                     78811
+(1 row)
+
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5433".
+SET
+
+== 5. The row has streamed to the REPLICA ==
+ port | is_replica 
+------+------------
+ 5433 | t
+(1 row)
+
+ bookings_on_replica_after 
+---------------------------
+                     78811
+(1 row)
+
+ demo_row_on_replica 
+---------------------
+                   1
+(1 row)
+
+ received_lsn | replayed_lsn | replay_gap_bytes 
+--------------+--------------+------------------
+ 0/80130D8    | 0/80130D8    |                0
+(1 row)
+
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5432".
+
+== 6. pg_stat_replication on the PRIMARY ==
+ application_name |   state   | sync_state |   replay_lag    
+------------------+-----------+------------+-----------------
+ ironcore_replica | streaming | async      | 00:00:00.013206
+(1 row)
+
+
+==> P5 complete. Open portfolio-5-distributed-cloud/cloud_architecture.md
+    for the NDPA 2023 design and the sync vs async / CAP discussion.

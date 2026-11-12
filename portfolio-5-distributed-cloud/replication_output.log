@@ -1,0 +1,84 @@
+Pager usage is off.
+You are now connected to database "ironcore" as user "postgres".
+SET
+SET
+== 1. Who is who ==
+ port | is_replica |  role   
+------+------------+---------
+ 5432 | f          | PRIMARY
+(1 row)
+
+demo class_session_id = 5479  demo member_id = 10  class_date = 2026-11-12
+ bookings_on_primary_before 
+----------------------------
+                      78810
+(1 row)
+
+ demo_rows_before 
+------------------
+                0
+(1 row)
+
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5433".
+SET
+
+== 2. Switched to the REPLICA ==
+ port | is_replica |  role   
+------+------------+---------
+ 5433 | t          | REPLICA
+(1 row)
+
+ bookings_on_replica_before 
+----------------------------
+                      78810
+(1 row)
+
+== 3. A write on the replica must be rejected (read-only) ==
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-5-distributed-cloud/replica_demo.sql:33: ERROR:  cannot execute INSERT in a read-only transaction
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5432".
+SET
+
+== 4. Back on the PRIMARY: the same insert is accepted ==
+ port | is_replica 
+------+------------
+ 5432 | f
+(1 row)
+
+INSERT 0 1
+ bookings_on_primary_after 
+---------------------------
+                     78811
+(1 row)
+
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5433".
+SET
+
+== 5. The row has streamed to the REPLICA ==
+ port | is_replica 
+------+------------
+ 5433 | t
+(1 row)
+
+ bookings_on_replica_after 
+---------------------------
+                     78811
+(1 row)
+
+ demo_row_on_replica 
+---------------------
+                   1
+(1 row)
+
+ received_lsn | replayed_lsn | replay_gap_bytes 
+--------------+--------------+------------------
+ 0/80130D8    | 0/80130D8    |                0
+(1 row)
+
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5432".
+
+== 6. pg_stat_replication on the PRIMARY ==
+ application_name |   state   | sync_state |   replay_lag    
+------------------+-----------+------------+-----------------
+ ironcore_replica | streaming | async      | 00:00:00.013206
+(1 row)
+
