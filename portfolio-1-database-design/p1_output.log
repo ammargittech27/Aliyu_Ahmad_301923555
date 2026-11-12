@@ -1,0 +1,150 @@
+==> [1/4] Building schema (schema.sql)
+BEGIN
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/schema.sql:9: NOTICE:  schema "ironcore" does not exist, skipping
+DROP SCHEMA
+CREATE SCHEMA
+SET
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/schema.sql:13: NOTICE:  extension "btree_gist" already exists, skipping
+CREATE EXTENSION
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+COMMIT
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE TRIGGER
+CREATE TRIGGER
+CREATE TRIGGER
+CREATE VIEW
+CREATE VIEW
+Schema ironcore created with 9 tables + 3 triggers + 2 views.
+==> [2/4] Loading seed (seed.sql)
+SET
+BEGIN
+INSERT 0 5
+INSERT 0 3
+INSERT 0 5
+DO
+INSERT 0 30
+INSERT 0 30
+INSERT 0 30
+DO
+COMMIT
+Seed loaded: 5 branches, 10 trainers, 5 class_types, 3 plans, 30 members, 30 memberships, 30 payments, ~210 class sessions (next 14 days).
+==> [3/4] Generating bulk data (generate_bulk.sql) — 6,000 members, ~7,000 memberships, ~7,400 sessions, 60,000+ bookings
+SET
+SET
+BEGIN
+TRUNCATE TABLE
+COMMIT
+CREATE TABLE
+INSERT 0 72
+CREATE TABLE
+INSERT 0 50
+Generating 6,000 members...
+INSERT 0 6000
+Generating 10 trainers (2 per branch)...
+DO
+UPDATE 6000
+SET
+Generating ~7,000 memberships...
+SELECT 5000
+INSERT 0 5000
+INSERT 0 2000
+Generating payments for every membership...
+INSERT 0 7000
+Generating class sessions (365 days of history + next 14 days)...
+INSERT 0 5700
+Generating class bookings (no class over capacity)...
+INSERT 0 78775
+SET
+Adding WAITLISTED rows and a cancellation on full future classes...
+INSERT 0 15
+UPDATE 2
+ANALYZE
+
+== Bulk generation complete ==
+   table_name   | count 
+----------------+-------
+ members        |  6000
+ memberships    |  7000
+ class_sessions |  5700
+ class_bookings | 78790
+ payments       |  7000
+(5 rows)
+
+   status   | count 
+------------+-------
+ ATTENDED   | 66106
+ CANCELLED  |  9457
+ BOOKED     |  3214
+ WAITLISTED |    13
+(4 rows)
+
+         check          | count 
+------------------------+-------
+ sessions over capacity |     0
+(1 row)
+
+==> [4/4] Running constraint tests (constraint_tests.sql)
+SET
+SET
+== Test 1: a member cannot hold two overlapping memberships (EXCLUSION no_overlap_membership) ==
+BEGIN
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:24: NOTICE:  control OK: first membership inserted
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:24: NOTICE:  PASS: overlapping membership rejected by no_overlap_membership
+DO
+ROLLBACK
+== Test 2: a trainer cannot teach two overlapping sessions (EXCLUSION no_overlap_trainer) ==
+BEGIN
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:43: NOTICE:  control OK: first session inserted
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:43: NOTICE:  PASS: overlapping trainer session rejected by no_overlap_trainer
+DO
+ROLLBACK
+== Test 3: no booking without an active membership on the class day (trigger) ==
+BEGIN
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:60: NOTICE:  PASS: rejected by trigger: Member 6002 has no active membership on 2026-11-12 for class_session 5476
+DO
+ROLLBACK
+== Test 4: same member cannot book the same class twice (UNIQUE one_booking_per_member_per_class) ==
+BEGIN
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:82: NOTICE:  control OK: first booking inserted
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:82: NOTICE:  PASS: duplicate booking rejected by one_booking_per_member_per_class
+DO
+ROLLBACK
+== Test 5: payment amount must be > 0 (CHECK) ==
+BEGIN
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:100: NOTICE:  control OK: valid payment inserted
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:100: NOTICE:  PASS: zero payment rejected by payment_amount_naira_check
+DO
+ROLLBACK
+== Test 6: plan price must be > 0 (CHECK) ==
+BEGIN
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:113: NOTICE:  PASS: zero-price plan rejected by plan_price_naira_check
+DO
+ROLLBACK
+== Test 7: cancelling a BOOKED row promotes WAITLISTED position 1 (own data, capacity 2) ==
+BEGIN
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:140: NOTICE:  control OK: third booking became WAITLISTED position 1
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-1-database-design/constraint_tests.sql:140: NOTICE:  PASS: cancellation promoted the waitlisted member to BOOKED
+DO
+ROLLBACK
+
+== All 7 constraint tests passed ==
+
+==> P1 complete. Open portfolio-1-database-design/README.md for what to screenshot and commit.
