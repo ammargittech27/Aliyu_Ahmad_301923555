@@ -1,0 +1,220 @@
+MIT 8103 results - Ahmad Aliyu Bello (2026/A/MIT/0537) - generated 2026-11-12 02:51 UTC
+Host: Linux 6.8.0-1070-azure | psql (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) | mongod db version v8.0.38
+
+=================== P1 - row counts, booking status, capacity check ===================
+== Bulk generation complete ==
+   table_name   | count 
+----------------+-------
+ members        |  6000
+ memberships    |  7000
+ class_sessions |  5700
+ class_bookings | 78790
+ payments       |  7000
+
+   status   | count 
+------------+-------
+ ATTENDED   | 66106
+ CANCELLED  |  9457
+ BOOKED     |  3214
+ WAITLISTED |    13
+
+         check          | count 
+------------------------+-------
+ sessions over capacity |     0
+
+=================== P1 - constraint tests ===================
+control OK: first membership inserted
+PASS: overlapping membership rejected by no_overlap_membership
+control OK: first session inserted
+PASS: overlapping trainer session rejected by no_overlap_trainer
+PASS: rejected by trigger: Member 6002 has no active membership on 2026-11-12 for class_session 5476
+control OK: first booking inserted
+PASS: duplicate booking rejected by one_booking_per_member_per_class
+control OK: valid payment inserted
+PASS: zero payment rejected by payment_amount_naira_check
+PASS: zero-price plan rejected by plan_price_naira_check
+control OK: third booking became WAITLISTED position 1
+PASS: cancellation promoted the waitlisted member to BOOKED
+== All 7 constraint tests passed ==
+
+=================== P2 - before/after (ms and access paths, from EXPLAIN ANALYZE) ===================
+P2 summary (ms from EXPLAIN ANALYZE; access paths taken):
+BEFORE Q1  0.810 ms  Seq Scan on class_session s; Seq Scan on branch b; Seq Scan on class_type ct; Index Scan using one_booking_per_member_per_class on class_booking bk
+BEFORE Q2  38.752 ms  Seq Scan on class_booking bk; Seq Scan on class_session s; Seq Scan on class_type ct
+BEFORE Q3  53.233 ms  Seq Scan on class_booking bk; Seq Scan on class_session s
+BEFORE Q4  1.574 ms  Seq Scan on member m; Seq Scan on membership ms
+BEFORE Q5  13.770 ms  Seq Scan on trainer; Seq Scan on trainer t; Seq Scan on class_booking bk; Bitmap Index Scan on no_overlap_trainer
+BEFORE Q6  4.655 ms  Seq Scan on class_session s; Seq Scan on class_booking bk; Seq Scan on class_type ct
+
+AFTER Q1  0.447 ms  Index Scan using p2_session_start on class_session s; Seq Scan on branch b; Seq Scan on class_type ct; Index Scan using p2_booking_session on class_booking bk
+AFTER Q2  49.395 ms  Seq Scan on class_booking bk; Seq Scan on class_session s; Seq Scan on class_type ct
+AFTER Q3  50.587 ms  Seq Scan on class_booking bk; Seq Scan on class_session s
+AFTER Q4  1.191 ms  Seq Scan on member m; Bitmap Index Scan on p2_membership_end
+AFTER Q5  10.804 ms  Seq Scan on trainer; Seq Scan on trainer t; Seq Scan on class_booking bk; Bitmap Index Scan on p2_session_trainer_ts
+AFTER Q6  0.783 ms  Seq Scan on class_session s; Bitmap Index Scan on p2_booking_member; Index Scan using class_type_pkey on class_type ct
+
+=================== P3 - transactions + six concurrency demos (two real sessions) ===================
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-3-transactions-concurrency/transactions.sql:160: NOTICE:  book_class OK: member 10 class 5476 -> booking_id=78797 status=BOOKED
+--
+ members_before 
+--
+ members_inside_tx 
+--
+ members_after_rollback 
+--
+
+======== PART 1 - THE BUG: two sessions book the LAST seat with a plain SELECT count + INSERT ========
+start: BOOKED=19 WAITLISTED=0 capacity=20
+session A: sees 19 booked of 20 -> free seat, inserts member 248
+session B: sees 19 booked of 20 -> free seat, inserts member 272
+after both commit: BOOKED=21 WAITLISTED=0 capacity=20   <-- 21 BOOKED in a class of 20 (overbooked!)
+
+======== PART 2 - UNIQUE (class_session_id, member_id): the same member booked twice at once ========
+session B is blocked waiting for A's uncommitted row... alive
+session B result: UniqueViolation: one_booking_per_member_per_class
+final: BOOKED=20 WAITLISTED=0 capacity=20 (one booking for that member)
+
+======== PART 3 - FIX 1: book_class() locks the class row (SELECT ... FOR UPDATE) ========
+session B called book_class() and is waiting on the lock: yes
+session B finished after the lock released: status=WAITLISTED (waited 1.0s)
+final: BOOKED=20 WAITLISTED=1 capacity=20   <-- exactly 20 BOOKED, the late one is WAITLISTED
+
+======== PART 4 - FIX 2: SERIALIZABLE isolation (one of the two is aborted and must retry) ========
+A: COMMIT ok
+B: SerializationFailure (SQLSTATE 40001) - retry needed
+final: BOOKED=20 WAITLISTED=0 capacity=20
+
+======== PART 5 - READ COMMITTED vs REPEATABLE READ (non-repeatable read) ========
+READ COMMITTED: reader's first count=10, after another session committed a booking, second count=11  -> CHANGED
+REPEATABLE READ: reader's first count=10, after another session committed a booking, second count=10  -> same snapshot
+
+======== PART 6 - DEADLOCK: two sessions lock the same two bookings in opposite order ========
+A locked booking 78923; B locked booking 78924
+A: DeadlockDetected (SQLSTATE 40P01) - victim rolled back
+B: got second lock
+fix: always lock bookings in the same order (ORDER BY booking_id ... FOR UPDATE) and the deadlock cannot happen.
+
+All six demos finished.
+
+=================== P4 - MongoDB: validation tests, document counts, COLLSCAN to IXSCAN ===================
+PASS: valid strength workout accepted
+PASS: strength exercise missing sets/reps/weight_kg rejected by validation (code 121)
+PASS: cardio exercise carrying a strength-only shape rejected by validation (code 121)
+workouts inserted: 42000
+trainer_notes inserted: 2000
+body_measurements inserted: 4800
+Before — winningPlan stage  : COLLSCAN
+Before — totalDocsExamined  : 42000
+Before — executionTimeMs    : 15
+After  — winningPlan stage  : IXSCAN
+After  — totalDocsExamined  : 10
+After  — executionTimeMs    : 1
+
+=================== P5 - partitions, pruning timing, replica ===================
+ class_booking_2025_11 | 4013
+ class_booking_2025_12 | 6118
+ class_booking_2026_01 | 6623
+ class_booking_2026_02 | 5746
+ class_booking_2026_03 | 6544
+ class_booking_2026_04 | 6462
+ class_booking_2026_05 | 6321
+ class_booking_2026_06 | 6225
+ class_booking_2026_07 | 6381
+ class_booking_2026_08 | 6447
+ class_booking_2026_09 | 6097
+ class_booking_2026_10 | 6315
+ class_booking_2026_11 | 5518
+ rows in DEFAULT partition (must be 0) |     0
+ total rows partitioned vs flat copy |       78810 | 78810
+         Subplans Removed: 17
+         ->  Seq Scan on class_booking_2026_08 class_booking_1 (actual time=0.006..2.008 rows=6447 loops=1)
+ Planning Time: 0.989 ms
+ Execution Time: 3.123 ms
+   ->  Index Scan using idx_flat_class_date on class_booking_flat (actual time=0.030..0.715 rows=6447 loops=1)
+ Planning Time: 0.083 ms
+ Execution Time: 1.548 ms
+
+Pager usage is off.
+You are now connected to database "ironcore" as user "postgres".
+SET
+SET
+== 1. Who is who ==
+ port | is_replica |  role   
+------+------------+---------
+ 5432 | f          | PRIMARY
+(1 row)
+
+demo class_session_id = 5479  demo member_id = 10  class_date = 2026-11-12
+ bookings_on_primary_before 
+----------------------------
+                      78810
+(1 row)
+
+ demo_rows_before 
+------------------
+                0
+(1 row)
+
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5433".
+SET
+
+== 2. Switched to the REPLICA ==
+ port | is_replica |  role   
+------+------------+---------
+ 5433 | t          | REPLICA
+(1 row)
+
+ bookings_on_replica_before 
+----------------------------
+                      78810
+(1 row)
+
+== 3. A write on the replica must be rejected (read-only) ==
+psql:/workspaces/Aliyu_Ahmad_301923555/portfolio-5-distributed-cloud/replica_demo.sql:33: ERROR:  cannot execute INSERT in a read-only transaction
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5432".
+SET
+
+== 4. Back on the PRIMARY: the same insert is accepted ==
+ port | is_replica 
+------+------------
+ 5432 | f
+(1 row)
+
+INSERT 0 1
+ bookings_on_primary_after 
+---------------------------
+                     78811
+(1 row)
+
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5433".
+SET
+
+== 5. The row has streamed to the REPLICA ==
+ port | is_replica 
+------+------------
+ 5433 | t
+(1 row)
+
+ bookings_on_replica_after 
+---------------------------
+                     78811
+(1 row)
+
+ demo_row_on_replica 
+---------------------
+                   1
+(1 row)
+
+ received_lsn | replayed_lsn | replay_gap_bytes 
+--------------+--------------+------------------
+ 0/80130D8    | 0/80130D8    |                0
+(1 row)
+
+You are now connected to database "ironcore" as user "postgres" via socket in "/var/run/postgresql" at port "5432".
+
+== 6. pg_stat_replication on the PRIMARY ==
+ application_name |   state   | sync_state |   replay_lag    
+------------------+-----------+------------+-----------------
+ ironcore_replica | streaming | async      | 00:00:00.013206
+(1 row)
+
